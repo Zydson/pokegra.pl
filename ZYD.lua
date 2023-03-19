@@ -2,7 +2,28 @@ ZYD = {}
 ZYD.Proxies = {}
 ZYD.OperatingSystem = ""
 ZYD.LastMessage = ""
-ZYD.PHPSessionID = "qm1mne03oitga42hc2f1dkc047"
+ZYD.CaptchaApiKey = "x" -- 2captcha.com api key
+ZYD.Solved = false
+-- Enter your PHPSESSID here
+ZYD.Headers = [[
+accept: application/json, text/javascript, */*; q=0.01
+accept-language: en-US,en;q=0.9
+content-type: application/x-www-form-urlencoded;charset=UTF-8
+cookie: PHPSESSID=x; _ga=GA1.1.1727065598.1678817780; __utmc=228978461; __utmz=228978461.1678817780.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); __gads=ID=32c71b51b9458c31-2230b85132dc007a:T=1678817788:RT=1678817788:S=ALNI_MZ-A_GD3lySwe65RKjas0BsTto4Xw; location=0; __utma=228978461.1727065598.1678817780.1679084385.1679206462.7; __gpi=UID=00000becef628d28:T=1678817788:RT=1679206481:S=ALNI_MaWGNUXcD6b_6GeeBU4VPrPsiOeaQ; __utmt_UA-43254740-2=1; __utmb=228978461.45.10.1679206462; _ga_N1GS3919D3=GS1.1.1679206461.6.1.1679208943.0.0.0
+referer: https://www.pokegra2.pl/?x=teren
+sec-ch-ua: "Not=A?Brand";v="8", "Chromium";v="110", "Opera GX";v="96"
+sec-ch-ua-mobile: ?0
+sec-ch-ua-platform: "Windows"
+sec-fetch-dest: empty
+sec-fetch-mode: cors
+sec-fetch-site: same-origin
+user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 OPR/96.0.0.0
+x-requested-with: XMLHttpRequest
+]]
+ZYD.CurlHeaders = ""
+for line in string.gmatch(ZYD.Headers,'[^\r\n]+') do 
+	ZYD.CurlHeaders = ZYD.CurlHeaders .. " " .. '-H "'..line..'"'
+end
 
 if tostring(package.cpath:match("%p[\\|/]?%p(%a+)")) == "dll" then
 	ZYD.OperatingSystem = "Windows"
@@ -188,25 +209,37 @@ ZYD.Parse = function(tar, _type, jsonInd, leftstring, rightstring)
 	end
 end
 
-ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel,php_session)
+ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel)
 	itemUsed = false
-	ZYD.MoveChar(map,x,y,php_session) -- After update at 12.03.2023 we need to be at the specific square to get data from it (there is threeshold +-4 XY)
-	local res = ZYD.GetMobsAtXY(map,x,y,php_session)
+	ZYD.MoveChar(map,x,y) -- After update at 12.03.2023 we need to be at the specific square to get data from it (there is threeshold +-4 XY)
+	local res = ZYD.GetMobsAtXY(map,x,y)
 	if pcall(ZYD.JsonValidation, res:sub(4,#res)) then
 		local toJson = json.decode(res:sub(4,#res))
 		for a,b in pairs(toJson["stworzenia"]) do
 			if tonumber(b["poziom"]) <= tonumber(maxLevel) and tonumber(b["poziom"]) >= tonumber(minLevel) then
-				local attack = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/atak.php?typ=1&id='..b["id"]..'&mapa='..map..'&x='..x..'&y='..y..'&time='..os.time()..'" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+				local attack = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/atak.php?typ=1&id='..b["id"]..'&mapa='..map..'&x='..x..'&y='..y..'&time='..os.time()..'"'..ZYD.CurlHeaders)
 				if pcall(ZYD.JsonValidation, attack:sub(4,#attack)) then
 					local attackJson = json.decode(attack:sub(4,#attack))
 					if attackJson["captcha"] == 1 then
-						print("captcha required")
-						ZYD.Wait(15)
+						if not ZYD.Solved then
+							ZYD.Solved = true
+							local res = ZYD.HTTP_GetRequest('"http://2captcha.com/in.php?key='..ZYD.CaptchaApiKey..'&method=userrecaptcha&googlekey=6LfDL0EUAAAAAOdJ5Buw2_uw1CGoeoy3dxj2vB4w&pageurl=https://www.pokegra2.pl/?x=captcha"')
+							if string.find(res,"OK|") then
+								local token = string.sub(res,4,#res)
+								local solve
+								repeat
+									solve = ZYD.HTTP_GetRequest('"http://2captcha.com/res.php?key='..ZYD.CaptchaApiKey..'&action=get&id='..token..'"')
+								until solve ~= "CAPCHA_NOT_READY"
+								local res = ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/?x=captcha"'..ZYD.CurlHeaders..' -d "g-recaptcha-response='..string.sub(solve,4,#solve)..'&texttyped2=-132%7C330-116%7C338-743%7C200-682%7C233-623%7C265-571%7C288-534%7C302-510%7C309-494%7C310-486%7C310-478%7C307-447%7C308-433%7C311-418%7C311-405%7C310-389%7C304-329%7C369-322%7C364-322%7C362-325%7C361-326%7C359-327%7C357-327%7C356-326%7C356-322%7C356-314%7C356-303%7C358-289%7C355-279%7C350-272%7C347-267%7C344-266%7C341-266%7C339-266%7C338-266%7C336-266%7C334-266%7C332-266%7C330-266%7C328-267%7C328-269%7C327-270%7C325-270%7C324-270%7C323-272%7C322-272%7C321-273%7C320-274%7C319B274C319"')
+							end
+							print("Captcha solved")
+							break
+						end
 					end
 					if attackJson["zmeczenie"] == 95 then
 						if not itemUsed then
 							itemUsed = true
-							ZYD.UseItem(21, php_session)
+							ZYD.UseItem(21)
 						end
 					end
 				end
@@ -216,9 +249,9 @@ ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel,php_session)
 	end
 end
 
-ZYD.FindMobXY = function(map,x,y,name,php_session)
-	ZYD.MoveChar(map,x,y,php_session)
-	local res = ZYD.GetMobsAtXY(map,x,y,php_session)
+ZYD.FindMobXY = function(map,x,y,name)
+	ZYD.MoveChar(map,x,y)
+	local res = ZYD.GetMobsAtXY(map,x,y)
 	if pcall(ZYD.JsonValidation, res:sub(4,#res)) then
 		local toJson = json.decode(res:sub(4,#res))
 		for a,b in pairs(toJson["stworzenia"]) do
@@ -229,19 +262,19 @@ ZYD.FindMobXY = function(map,x,y,name,php_session)
 	end
 end
 
-ZYD.SearchForMob = function(map,name,php_session)
+ZYD.SearchForMob = function(map,name)
 	for c,d in pairs(ZYD.Maps[map]) do
-		ZYD.FindMobXY(map, d[1], d[2], name, php_session)
+		ZYD.FindMobXY(map, d[1], d[2], name)
 	end
 end
 
-ZYD.ScanMapForSpots = function(map,php_session)
+ZYD.ScanMapForSpots = function(map)
 	tempSpots = "{"
 	for x=1,40 do
 		print(x)
 		for y=1,40 do
-			ZYD.MoveChar(map,x,y,php_session)
-			local res = ZYD.GetMobsAtXY(map,x,y,php_session)
+			ZYD.MoveChar(map,x,y)
+			local res = ZYD.GetMobsAtXY(map,x,y)
 			if pcall(ZYD.JsonValidation, res:sub(4,#res)) then
 				local toJson = json.decode(res:sub(4,#res))
 				if #toJson["stworzenia"] ~= 0 then
@@ -254,13 +287,13 @@ ZYD.ScanMapForSpots = function(map,php_session)
 	print(tempSpots.."}")
 end
 
-ZYD.BuyItemFromAH = function(id,count,php_session)
-	local getAC = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/aukcje/getPrzedmiot.php?id='..id..'" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+ZYD.BuyItemFromAH = function(id,count)
+	local getAC = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/aukcje/getPrzedmiot.php?id='..id..'"'..ZYD.CurlHeaders)
 	if string.find(getAC,"Nie ma takiego przedmiotu") == nil then
 		if type(count) == "number" then
 			local itemName = ZYD.Parse(getAC,type(getAC),0,"'aukcje_nazwa'>","<br>")
 			if itemName ~= nil then
-				ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/ajax/aukcje/buySomePrzedmiot.php?id='..id..'&token=757895c63b4b4f1d3b19e75936e164b4" -H "cookie: PHPSESSID='..php_session..'; location=0" -d "textText='..count..'"') -- Token is always the same
+				ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/ajax/aukcje/buySomePrzedmiot.php?id='..id..'&token=757895c63b4b4f1d3b19e75936e164b4"'..ZYD.CurlHeaders..' -d "textText='..count..'"') -- Token is unique for every player player_token
 			end
 		else
 			ZYD.Error("expected number not ["..type(count).."] args[count]","ZYD.BuyItemFromAH",false)
@@ -272,15 +305,15 @@ ZYD.BuyItemFromAH = function(id,count,php_session)
 	end
 end
 
-ZYD.PutItemOnAH = function(name,count,price,php_session)
-	local getItems = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=5&pokaz=1" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+ZYD.PutItemOnAH = function(name,count,price)
+	local getItems = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=5&pokaz=1"'..ZYD.CurlHeaders)
 	local tempParsed = ZYD.Parse(getItems,type(getItems),0,"<option value='","'>"..name)
 	if tempParsed ~= "Parse error" then
 		local itemId = string.sub(tempParsed,#tempParsed-7,#tempParsed)
 		local tempParsed
 		if type(count) == "number" then
 			if type(price) == "number" then
-				local res = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=5&wystaw=2&przedmiot='..itemId..'&ilosc='..count..'&cena='..price..'" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+				local res = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=5&wystaw=2&przedmiot='..itemId..'&ilosc='..count..'&cena='..price..'"'..ZYD.CurlHeaders)
 				if string.find(res,"wielu aukcji") ~= nil then
 					ZYD.Error("you cant put that many items on ah","ZYD.PutItemOnAH",false)
 					return "Error"
@@ -299,45 +332,45 @@ ZYD.PutItemOnAH = function(name,count,price,php_session)
 	end
 end
 
-ZYD.UseItem = function(id,php_session)
+ZYD.UseItem = function(id)
 	if type(id) == "number" then
 		print("Used "..id)
-		ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/?x=ekwipunek&id='..id..'&act=uzyj" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+		ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/?x=ekwipunek&id='..id..'&act=uzyj"'..ZYD.CurlHeaders)
 	else
 		ZYD.Error("expected number not ["..type(id).."] args[id]","ZYD.UseItem",false)
 		return "Error"
 	end
 end
 
-ZYD.MoveChar = function(map,x,y,php_session)
+ZYD.MoveChar = function(map,x,y)
 	if type(map) == "number" and type(x) == "number" and type(y) == "number" then
-		ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/ajax/poruszanie.php" -H "cookie: PHPSESSID='..php_session..'; location=0" -d "przesuniecie=1&mapa='..map..'&x='..x..'&y='..y..'"')
+		local res = ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/ajax/poruszanie.php"'..ZYD.CurlHeaders..' -d "przesuniecie=2&mapa='..map..'&x='..x..'&y='..y..'"')
 	else
 		ZYD.Error("expected args[map] args[x] args[y] to all of them be numbers and they are not","ZYD.MoveChar",false)
 		return
 	end
 end
 
-ZYD.GetMobsAtXY = function(map,x,y,php_session)
+ZYD.GetMobsAtXY = function(map,x,y)
 	if type(map) == "number" and type(x) == "number" and type(y) == "number" then
-		return ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/pola2.php?mapa='..map..'&x='..x..'&y='..y..'" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+		return ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/pola2.php?mapa='..map..'&x='..x..'&y='..y..'"'..ZYD.CurlHeaders..'')
 	else
 		ZYD.Error("expected args[map] args[x] args[y] to all of them be numbers and they are not","ZYD.GetMobsAtXY",false)
 		return
 	end
 end
 
-ZYD.SendProximityMessage = function(message,php_session)
+ZYD.SendProximityMessage = function(message)
 	if message ~= nil then
-		ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/ajax/czat2.php" -H "cookie: PHPSESSID='..php_session..'; location=0" -d "wpisy=0&tresc='..message..'"')
+		ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/ajax/czat2.php"'..ZYD.CurlHeaders..' -d "wpisy=0&tresc='..message..'"')
 	else
 		ZYD.Error("args[message] cant be nil","ZYD.SendProximityMessage",false)
 		return "Error"
 	end
 end
 
-ZYD.CheckLastMessage = function(php_session)
-	local messages = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/?x=poczta" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+ZYD.CheckLastMessage = function()
+	local messages = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/?x=poczta"'..ZYD.CurlHeaders)
 	local last = ZYD.Parse(messages,type(messages),0,'<span class="poczta_itemtresc">','</span>')
 	if ZYD.LastMessage == "" then
 		ZYD.LastMessage = last
@@ -349,8 +382,8 @@ ZYD.CheckLastMessage = function(php_session)
 	end
 end
 SzulerOverall = 0
-ZYD.Szuler = function(php_session) -- lotto lose 10 or win 20
-	local lotto = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=24&oddam=1" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+ZYD.Szuler = function() -- lotto lose 10 or win 20
+	local lotto = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=24&oddam=1"'..ZYD.CurlHeaders)
 	if string.find(lotto,"Przeg") ~= nil then
 		SzulerOverall = SzulerOverall - 10
 	else
@@ -359,9 +392,9 @@ ZYD.Szuler = function(php_session) -- lotto lose 10 or win 20
 	print(SzulerOverall)
 end
 
-ZYD.Torin = function(php_session) -- talon
-	local Options = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=6&pokaz=1" -H "cookie: PHPSESSID='..php_session..'; location=0"')
-	local Check = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=6&zgadywanie=1&1&zgadnij=1&stworzenie='..ZYD.Parse(Mobs,type(Mobs),0,"<option value='","'>")..'" -H "cookie: PHPSESSID='..php_session..'; location=0"')
+ZYD.Torin = function() -- talon
+	local Options = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=6&pokaz=1"'..ZYD.CurlHeaders)
+	local Check = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=6&zgadywanie=1&1&zgadnij=1&stworzenie='..ZYD.Parse(Mobs,type(Mobs),0,"<option value='","'>")..'"'..ZYD.CurlHeaders)
 end
 
 ZYD.MapsLabel = {
@@ -391,11 +424,11 @@ ZYD.Maps = {
 	[64] = {{21,33},{21,34},{21,35},{21,36},{22,33},{22,34},{22,35},{22,36},{23,33},{23,34},{23,35},{23,36},{24,33},{24,34},{24,35},{24,36},{25,32},{25,33},{25,34},{25,35},{25,36},{26,32},{26,33},{26,34},{27,32},{27,33},{27,34},{28,25},{28,26},{28,32},{28,33},{28,34},{28,35},{29,25},{29,26},{29,31},{30,25},{30,26},{30,31},{30,32},{30,33},{30,34},{30,35},{31,25},{31,26},{31,31},{31,32},{31,33},{31,34},{32,25},{32,26},{32,31},{32,32},{32,33},{32,34},{33,22},{33,23},{33,24},{33,25},{33,26},{33,31},{33,32},{33,33},{33,34},{34,22},{34,23},{34,24},{34,25},{34,26},{34,31},{34,32},{34,33},{34,34},{35,13},{35,22},{35,23},{35,24},{35,25},{35,26},{36,13},{36,14},{36,15},{36,16},{36,17},{36,18},{36,22},{36,23},{36,24},{36,25},{36,26},{37,13},{37,14},{37,15},{37,16},{37,17},{37,18},{37,22},{37,23},{37,24},{37,25},{37,26},{38,13},{38,14},{38,15},{38,16},{38,17},{38,18},{39,17},{39,18},{40,17},{40,18}},
 	[65] = {{11,31},{11,32},{12,31},{12,32},{13,31},{13,32},{13,33},{31,15},{31,16},{32,15},{32,16},{32,17},{33,15},{33,16},{33,17},{34,15},{34,16},{34,17},{34,23},{34,24},{34,25},{35,15},{35,16},{35,17},{35,23},{35,24},{35,25},{36,23},{36,24},{36,25}},
 }
---[[
+
 while true do
 	for a,b in pairs(ZYD.Maps[18]) do
-		ZYD.KillAllMobs(18, b[1], b[2], 1, 145, ZYD.PHPSessionID)
+		ZYD.KillAllMobs(18, b[1], b[2], 1, 145)
 	end
 	ZYD.Wait(10)
+	ZYD.Solved = false
 end
---]]
