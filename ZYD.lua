@@ -3,7 +3,12 @@ ZYD.Proxies = {}
 ZYD.OperatingSystem = ""
 ZYD.LastMessage = ""
 ZYD.CaptchaApiKey = "x"  -- 2captcha.com api key
+ZYD.StartTime = os.time()
 ZYD.Solved = false
+ZYD.Statistics = {
+	["Mobs_killed"] = 0,
+	["Captchas_solved"] = 0,
+}
 -- Enter your PHPSESSID here
 ZYD.Headers = [[
 accept: application/json, text/javascript, */*; q=0.01
@@ -209,7 +214,7 @@ ZYD.Parse = function(tar, _type, jsonInd, leftstring, rightstring)
 	end
 end
 
-ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel)
+ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel,drop)
 	itemUsed = false
 	ZYD.MoveChar(map,x,y) -- After update at 12.03.2023 we need to be at the specific square to get data from it (there is threeshold +-4 XY)
 	local res = ZYD.GetMobsAtXY(map,x,y)
@@ -217,7 +222,25 @@ ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel)
 		local toJson = json.decode(res:sub(4,#res))
 		for a,b in pairs(toJson["stworzenia"]) do
 			if tonumber(b["poziom"]) <= tonumber(maxLevel) and tonumber(b["poziom"]) >= tonumber(minLevel) then
+				local found
+				if drop ~= nil then
+					if type(drop) == "table" then
+						for c,d in pairs(drop) do
+							if d == b["nazwa"] then
+								found = true
+							end
+						end
+					else
+						if drop ~= b["nazwa"] then
+							found = true
+						end
+					end
+				end
+				if found ~= true and drop ~= nil then
+					break
+				end
 				local attack = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/atak.php?typ=1&id='..b["id"]..'&mapa='..map..'&x='..x..'&y='..y..'&time='..os.time()..'"'..ZYD.CurlHeaders)
+				ZYD.Statistics["Mobs_killed"] = ZYD.Statistics["Mobs_killed"] + 1
 				if pcall(ZYD.JsonValidation, attack:sub(4,#attack)) then
 					local attackJson = json.decode(attack:sub(4,#attack))
 					if attackJson["captcha"] == 1 then
@@ -233,7 +256,6 @@ ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel)
 									solve = ZYD.HTTP_GetRequest('"http://2captcha.com/res.php?key='..ZYD.CaptchaApiKey..'&action=get&id='..token..'"')
 									ZYD.Wait(2)
 									timeout = timeout + 1
-									print(solve.." "..os.date("[%H:%M]"))
 									if timeout == 120 then
 										solve = false
 										ZYD.Solved = false
@@ -242,6 +264,7 @@ ZYD.KillAllMobs = function(map,x,y,minLevel,maxLevel)
 								until solve ~= "CAPCHA_NOT_READY"
 								if solve then
 									local res = ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/?x=captcha"'..ZYD.CurlHeaders..' -d "g-recaptcha-response='..string.sub(solve,4,#solve)..'&texttyped2=-132%7C330-116%7C338-743%7C200-682%7C233-623%7C265-571%7C288-534%7C302-510%7C309-494%7C310-486%7C310-478%7C307-447%7C308-433%7C311-418%7C311-405%7C310-389%7C304-329%7C369-322%7C364-322%7C362-325%7C361-326%7C359-327%7C357-327%7C356-326%7C356-322%7C356-314%7C356-303%7C358-289%7C355-279%7C350-272%7C347-267%7C344-266%7C341-266%7C339-266%7C338-266%7C336-266%7C334-266%7C332-266%7C330-266%7C328-267%7C328-269%7C327-270%7C325-270%7C324-270%7C323-272%7C322-272%7C321-273%7C320-274%7C319B274C319"')
+									ZYD.Statistics["Captchas_solved"] = ZYD.Statistics["Captchas_solved"] + 1
 									print("Captcha solved ".. os.date("[%H:%M]"))
 									ZYD.Solved = false
 								end
@@ -394,10 +417,11 @@ ZYD.CheckLastMessage = function()
 		end
 	end
 end
+
 SzulerOverall = 0
-ZYD.Szuler = function() -- lotto lose 10 or win 20
-	local lotto = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=24&oddam=1"'..ZYD.CurlHeaders)
-	if string.find(lotto,"Przeg") ~= nil then
+ZYD.NPC_Szuler = function()
+	local Szuler = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=24&oddam=1"'..ZYD.CurlHeaders)
+	if string.find(Szuler,"Przeg") ~= nil then
 		SzulerOverall = SzulerOverall - 10
 	else
 		SzulerOverall = SzulerOverall + 10
@@ -405,9 +429,22 @@ ZYD.Szuler = function() -- lotto lose 10 or win 20
 	print(SzulerOverall)
 end
 
-ZYD.Torin = function() -- talon
+ZYD.NPC_Torin = function()
 	local Options = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=6&pokaz=1"'..ZYD.CurlHeaders)
 	local Check = ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/ajax/npc.php?type=6&zgadywanie=1&1&zgadnij=1&stworzenie='..ZYD.Parse(Mobs,type(Mobs),0,"<option value='","'>")..'"'..ZYD.CurlHeaders)
+end
+
+ZYD.BuyLotteryTicket = function()
+	ZYD.HTTP_GetRequest('"https://www.pokegra2.pl/?x=tablica&loteria=buy"'..ZYD.CurlHeaders)
+end
+
+ZYD.DepositMoney = function(money)
+	if type(money) == "number" then
+		ZYD.HTTP_PostRequest('"https://www.pokegra2.pl/?x=depozyt"'..ZYD.CurlHeaders..' -d "zdeponuj='..money..'"')
+	else
+		ZYD.Error("expected number not ["..type(money).."] args[money]","ZYD.DepositMoney",false)
+		return "Error"
+	end
 end
 
 ZYD.MapsLabel = {
@@ -440,10 +477,21 @@ ZYD.Maps = {
 	[65] = {{11,31},{11,32},{12,31},{12,32},{13,31},{13,32},{13,33},{31,15},{31,16},{32,15},{32,16},{32,17},{33,15},{33,16},{33,17},{34,15},{34,16},{34,17},{34,23},{34,24},{34,25},{35,15},{35,16},{35,17},{35,23},{35,24},{35,25},{36,23},{36,24},{36,25}},
 }
 
+ZYD.DropList = {
+	["Klepsydra"] = {"Bronzong","Gible","Prinplup","Drifblim","Shinx","Luxio","Purugly","Riolu","Lopunny","Lucario","Yanmega","Togekiss","Magmortar","Electivire","Tangrowth","Weavile","Abomasnow","Toxicroak","Croagunk"}
+}
+
 while true do
-	for a,b in pairs(ZYD.Maps[60]) do
-		ZYD.KillAllMobs(60, b[1], b[2], 1, 165)
+	local map = 60
+	for a,b in pairs(ZYD.Maps[map]) do
+		ZYD.KillAllMobs(map, b[1], b[2], 1, 165, ZYD.DropList["Klepsydra"])
 	end
-	ZYD.Wait(10)
+	print("\n--------QUICK RECAP--------")
+	print("Captchas solved: "..ZYD.Statistics["Captchas_solved"])
+	print("Mobs killed: "..ZYD.Statistics["Mobs_killed"])
+	print("Program running for "..os.time()-ZYD.StartTime.." seconds")
+	print("Current date "..os.date("[%d.%m.%y %H:%M]"))
+	print("--------QUICK RECAP--------\n")
+	ZYD.Wait(5)
 	ZYD.Solved = false
 end
